@@ -1,0 +1,32 @@
+6.demo_devmem target demonstration
+
+	alias ls='ls --color=never'
+#------------------------------------------------------------------------------
+# The example applications are installed in the directory /examples/drivers on
+# the target. So after you boot your target, you should change into that
+# directory.
+#------------------------------------------------------------------------------
+	cd /examples/drivers
+#------------------------------------------------------------------------------
+# demo_devmem
+#------------------------------------------------------------------------------
+	./demo_devmem -h
+	./demo_devmem -t
+	./demo_devmem -o | hexdump -Cv
+	./demo_devmem -a | hexdump -Cv
+	dd if=/dev/zero | ./demo_devmem -f
+	./demo_devmem -a | hexdump -Cv
+	./demo_devmem -d
+	./demo_devmem -a | hexdump -Cv
+
+/*
+/dev/mem summary
+>> Using /dev/mem to mmap() IO space into your user space application 
+   can be quick and convenient with little overhead. 
+>> mmap()’ing /dev/mem allows you to have peek and poke access into 
+   the IO space of your FPGA hardware. 
+>> mmap()’ing /dev/mem will NOT allow you have access to kernel space memory, 
+   or any other user space memory outside your own application’s memory. 
+>> mmap()’ing /dev/mem will NOT allow you to register an interrupt handler or 
+   interact with hardware interrupts in any way.
+*/
