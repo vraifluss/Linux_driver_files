@@ -1,0 +1,45 @@
+Hardware Handoff Files to Software Environment
+
+*Note
+These files are generated in the Quartus project directory 
+as a result of Qsys system generation and Quartus compilation.
+
+>>[]$ ls -r *.sopcinfo hps_isw_handoff/*
+
+soc_system.sopcinfo
+/*
+  The SOPCINFO file is created by Qsys during system generation. 
+  This database can be used to create system header files and 
+  device trees for the software environment.
+  The “sopc-create-header-files” utility can generate a variety 
+  of header file and macro file formats, and the “sopc2dts” 
+  utility can create device trees representing the Qsys system.
+*/
+
+
+>>hps_isw_handoff/soc_system_hps_0:
+/*
+  The hps_isw_handoff directory is created by Quartus 
+  during compilation and contains information about 
+  the HPS configuration from Qsys and Quartus. 
+
+  This collection of files is used by the BSP generator to create 
+  a customized preloader for the HPS core to run at boot time 
+  to configure the HPS core as defined by Qsys and Quartus
+*/
+
+  tclrpt.h 
+  sequencer_defines.h 
+  sdram_io.h
+  tclrpt.c 
+  sequencer.c 
+  id
+  system.h 
+  sequencer_auto_inst_init.c 
+  hps.xml
+  soc_system_hps_0.hiof 
+  sequencer_auto.h 
+  emif.xml
+  sequencer.h 
+  sequencer_auto_ac_init.c 
+  alt_types.h

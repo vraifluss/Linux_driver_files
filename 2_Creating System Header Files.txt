@@ -1,0 +1,62 @@
+2. Creating System Header Files
+[]$ sopc-create-header-files --help
+Usage: sopc-create-header-files [<sopc>] [OPTION]...
+
+This utility creates header files from your SOPC Builder 
+system description.
+By default, the header files are in cpp format and have 
+a .h suffix. Other formats may be selected with the appropriate 
+command-line option.
+
+Options:
+
+...cut...
+
+Supported header file formats:
+type 	suffix 	uses 				example
+==== 	====== 	========================== 	======================
+h 	.h 	C/C++ header file for cpp 	#define FOO 12
+m4 	.m4 	macro file for m4 		m4_define("FOO", 12)
+sh 	.sh 	shell scripts 			FOO=12
+mk 	.mk 	makefiles 			FOO := 12
+pm 	.pm 	Perl scripts 			$macros{FOO} = 12;
+
+By default, multiple header files are created. 
+There is one header file for the entire system and one header 
+file for each master group in each module.
+
+A master group is a set of masters in a module in the same address 
+space. In general, a module may have multiple master groups.
+Addresses and available devices are a function of the master group.
+
+...cut...
+
+
+[]$ mkdir qsys_headers
+[]$ sopc-create-header-files soc_system.sopcinfo --output-dir qsys_headers
+[]$ ls qsys_headers
+    axi_bridge_for_acp_128_0.h 
+    fft_sub_sgdma_to_fft.h 
+    lw_mm_bridge.h
+    fft_ddr_bridge.h 
+    fpga_only_master.h 
+    memcpy_msgdma_mm_read.h
+    fft_sub_DDR.h 
+    hps_0_arm_a9_0.h 
+    memcpy_msgdma_mm_write.h
+    fft_sub.h 
+    hps_0_arm_a9_1.h 
+    soc_system.h
+    fft_sub_mm_bridge_0.h 
+    hps_0_bridges.h
+    fft_sub_sgdma_from_fft.h 
+    hps_0.h
+/*
+ The sopc-create-header-files utility can create a memory map view 
+ from the perspective of any of the masters in the Qsys system. 
+ In the default mode demonstrated above, 
+ all masters in the Qsys system have a header file created for their view 
+ of the memory mapped system. The macros in these headers can be useful 
+ when writing applications and drivers that interact with the FPGA based 
+ peripherals
+*/
