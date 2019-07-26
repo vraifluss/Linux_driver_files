@@ -1,0 +1,249 @@
+i/o space, kernel space, user space
+
+demo_devmem.c example in use space
+
+
+int main(int argc, char **argv) 
+{
+ int devmem_fd;
+ void *demo_driver_map;
+ void *memcpy_msgdma_map;
+ int result;
+
+//
+// validate the system features
+//
+
+ validate_system_features();
+
+//
+// verify that DEMO_DRIVER_PHYS_BASE is page aligned
+//
+ if(DEMO_DRIVER_PHYS_BASE & (sysconf(_SC_PAGE_SIZE) - 1)) {
+ 
+ ...cut... 
+ }
+
+//
+// verify that MEMCPY_MSGDMA_CSR_PHYS_BASE is page aligned
+//
+
+ if(MEMCPY_MSGDMA_CSR_PHYS_BASE & (sysconf(_SC_PAGE_SIZE) - 1)) 
+ {
+  ...cut...
+ }
+
+//
+// parse the command line arguments
+//
+ parse_cmdline(argc, argv);
+
+/* 
+ In the demo_devmem.c example that is provided with this workshop 
+ we can see how our user space application starts off. 
+ The first few things that it does is attempt to validate its environment.
+*/
+
+//
+// open() the /dev/mem device
+//
+/* 
+   Then we open /dev/mem and we mmap() the base addresses to our demo_driver 
+   hardware and our memcpy_msgdma hardware.
+
+*/
+
+
+ devmem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+ if(devmem_fd < 0) {
+ ...cut...
+ }
+
+//
+// mmap() the base of our demo_driver hardware
+//
+
+ demo_driver_map = mmap( NULL, sysconf(_SC_PAGE_SIZE), PROT_READ|PROT_WRITE, 
+ 			MAP_SHARED, devmem_fd, DEMO_DRIVER_PHYS_BASE);
+ if(demo_driver_map == MAP_FAILED) {
+ ...cut...
+ }
+
+//
+// mmap() the base of our memcpy_msgdma hardware
+//
+
+ memcpy_msgdma_map = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ|PROT_WRITE,
+ MAP_SHARED, devmem_fd, MEMCPY_MSGDMA_CSR_PHYS_BASE);
+ 
+ if(memcpy_msgdma_map == MAP_FAILED) {
+ ...cut...
+ }
+
+//
+// perform the operation selected by the command line arguments
+//
+
+ if(g_print_timer != NULL) 	do_print_timer(demo_driver_map);
+ if(g_dump_rom != NULL) 	do_dump_rom(demo_driver_map);
+ if(g_dump_ram != NULL) 	do_dump_ram(demo_driver_map);
+ if(g_fill_ram != NULL) 	do_fill_ram(demo_driver_map);
+ if(g_dma_rom_ram != NULL) 	do_dma_rom_ram(memcpy_msgdma_map);
+ if(g_help != NULL) 		do_help();
+
+//
+// munmap everything and close the /dev/mem file descriptor
+//
+
+ result = munmap(demo_driver_map, sysconf(_SC_PAGE_SIZE));
+ if(result < 0) {
+ ...cut...
+ }
+
+ result = munmap(memcpy_msgdma_map, sysconf(_SC_PAGE_SIZE));
+ if(result < 0) {
+ ...cut...
+ }
+
+ close(devmem_fd);
+ exit(EXIT_SUCCESS);
+
+/* 
+  Then we can use those pointers that we mmap()’ed and then munmap() them 
+  when we’re finished and close /dev/mem.
+
+*/
+
+ void do_print_timer(void *demo_driver_map) {
+	volatile unsigned long *timer_base = demo_driver_map + TIMER_OFST;
+	double f_timeout_period = (double)(0.010) / ((double)(1) / (double)(DEMO_DRIVER_FREQ));
+	unsigned long timeout_period = f_timeout_period;
+	unsigned long timer_snaps_l[4];
+	unsigned long timer_snaps_h[4];
+	int i;
+//
+// if timer is not running, start it
+//
+	if((timer_base[ALTERA_AVALON_TIMER_STATUS_REG] & ALTERA_AVALON_TIMER_STATUS_RUN_MSK) printf("Timer not currently running, initializing and starting timer.\n");
+	timeout_period--;
+	timer_base[ALTERA_AVALON_TIMER_PERIODL_REG] = timeout_period;
+	timer_base[ALTERA_AVALON_TIMER_PERIODH_REG] = timeout_period >> 16;
+	timer_base[ALTERA_AVALON_TIMER_CONTROL_REG] = ALTERA_AVALON_TIMER_CONTROL_}
+//
+// Dump the timer registers
+//	
+	printf(" status = 0x%08lX\n", 	timer_base[ALTERA_AVALON_TIMER_STATUS_REG]);
+	printf(" control = 0x%08lX\n", 	timer_base[ALTERA_AVALON_TIMER_CONTROL_REG]);
+	printf("period_l = 0x%08lX\n", 	timer_base[ALTERA_AVALON_TIMER_PERIODL_REG]);
+	printf("period_h = 0x%08lX\n", 	timer_base[ALTERA_AVALON_TIMER_PERIODH_REG]);	
+	printf(" snap_l = 0x%08lX\n", 	timer_base[ALTERA_AVALON_TIMER_SNAPL_REG]);
+	printf(" snap_h = 0x%08lX\n", 	timer_base[ALTERA_AVALON_TIMER_SNAPH_REG]);
+
+void do_dump_rom(void *demo_driver_map) {
+write(STDOUT_FILENO, (void *)(demo_driver_map + ROM_OFST), ROM_SPAN);
+}
+
+void do_dump_ram(void *demo_driver_map) {
+write(STDOUT_FILENO, (void *)(demo_driver_map + RAM_OFST), RAM_SPAN);
+}
+
+void do_fill_ram(void *demo_driver_map) {
+read(STDIN_FILENO, (void *)(demo_driver_map + RAM_OFST), RAM_SPAN);
+}
+
+void do_dma_rom_ram(void *memcpy_msgdma_map) {
+	volatile unsigned long *memcpy_msgdma_csr_base = memcpy_msgdma_map;
+	volatile unsigned long *memcpy_msgdma_desc_base = memcpy_msgdma_map + MEMCPY_MSGDMA_DESC_PHYS_OFST;
+	unsigned long temp;
+//
+// make sure the DMA is not busy and the descriptor buffer is empty
+//
+	temp = memcpy_msgdma_csr_base[ALTERA_MSGDMA_CSR_STATUS_REG];
+	if((temp & ALTERA_MSGDMA_CSR_BUSY_MASK) != 0x00) {
+		error(0, 0, "dma is busy before first use");
+		exit(EXIT_FAILURE);
+}
+	if((temp & ALTERA_MSGDMA_CSR_DESCRIPTOR_BUFFER_EMPTY_MASK) == 0x00) {
+		error(0, 0, "dma descriptor buffer is not empty before first use");
+		exit(EXIT_FAILURE);
+}
+
+
+void validate_system_features(void) {
+	...cut...
+//
+// test to see that the demo_driver device entry exists in the sysfs
+//
+
+	dirname = DEMO_DRIVER_SYSFS_ENTRY_DIR;
+	dp = opendir(dirname);
+...cut...
+
+	if(closedir(dp)) {
+...cut...
+
+//
+// test to see that the demo_driver device entry exists in the procfs
+//
+	dirname = DEMO_DRIVER_PROCFS_ENTRY_DIR;
+	dp = opendir(dirname);
+...cut...
+
+	if(closedir(dp)) {
+...cut...
+
+//
+// fetch the clocks value out of our device entry
+//
+	filename = DEMO_DRIVER_CLOCKS_ENTRY;
+	fd = open(filename, O_RDONLY);
+...cut...
+	result = read(fd, clocks_array, 4);
+...cut...
+
+	if(close(fd)) {
+...cut...
+
+/* 
+  We use the run time device tree models to validate the system that 
+  we’re running in before we start touching any hardware.
+*/
+
+demo_devmem.h example
+
+//
+// expected values for the physical base address and clock frequency of the
+// demo driver hardware
+//
+
+#define DEMO_DRIVER_PHYS_BASE (0xFF230000)
+#define DEMO_DRIVER_SYSFS_ENTRY_DIR "/sys/bus/platform/devices/ff230000.driver"
+#define DEMO_DRIVER_PROCFS_ENTRY_DIR "/proc/device-tree/sopc@0/bridge@0xc0000000/driver@0x100030000"
+#define DEMO_DRIVER_FREQ (50000000)
+#define DEMO_DRIVER_CLOCKS_ENTRY "/proc/device-tree/sopc@0/bridge@0xc0000000/..cut../clocks"
+#define H2F_USER1_CLOCK_PHANDLE_ENTRY "/proc/device-tree/clocks/clk_0/linux,phandle"
+
+//
+// expected values for the physical base addresses of the memcpy_msgdma core
+//
+
+#define MEMCPY_MSGDMA_CSR_PHYS_BASE (0xFF220000)
+#define MEMCPY_MSGDMA_DESC_PHYS_BASE (0xFF220020)
+#define MEMCPY_MSGDMA_DESC_PHYS_OFST (MEMCPY_MSGDMA_DESC_PHYS_BASE - MEMCPY_MSGDMA_CSR_PHYS_BASE)
+#define MEMCPY_MSGDMA_REG_NAMES_ENTRY "/proc/device-tree/sopc@0/bridge@0xc0000000/msgdma@0x100020000/#define MEMCPY_MSGDMA_REG_NAMES_VALUE { 0x63, 0x73, 0x72, 0x00, 0x64, 0x65, 0x73, 0x63, 0x72, 0x6f, 0x72, 0x5f, 0x73, 0x6c, 0x61, 0x76, 0x65, 0x00 }
+#define MEMCPY_MSGDMA_REG_ENTRY "/proc/device-tree/sopc@0/bridge@0xc0000000/msgdma@0x100020000/#define MEMCPY_MSGDMA_REG_VALUE { 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x20, 0x00, 0x00, 0x00, 0x10 }
+
+//
+// demo driver hardware map
+//
+
+#define ROM_OFST (0)
+#define ROM_SPAN (1024)
+#define RAM_OFST (ROM_OFST + ROM_SPAN)
+#define RAM_SPAN (1024)
+#define TIMER_OFST (RAM_OFST + RAM_SPAN)
+
+/* 
+ Various system parameters that define our hardware, and device tree values 
+ we can validate against at run time from user space.
+*/
