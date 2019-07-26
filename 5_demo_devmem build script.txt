@@ -1,0 +1,33 @@
+5_demo_devmem build script
+
+#!/bin/sh
+type -t ${CROSS_COMPILE:?}gcc > /dev/null 2>&1 || {
+	echo ""
+	echo "ERROR: cross compiler tools are not visible in the environment."
+	echo ""
+	exit 1
+}
+
+${CROSS_COMPILE:?}gcc \
+	-march=armv7-a \
+	-mfloat-abi=hard \	
+	-mfpu=vfp3 \
+	-mthumb-interwork \
+	-mthumb \
+	-O2 \	
+	-g \
+	-feliminate-unused-debug-types \
+	-std=gnu99 \
+	-W \
+	-Wall \
+	-Werror \
+	-Wc++-compat \
+	-Wwrite-strings \
+	-Wstrict-prototypes \
+	-pedantic \
+	-o demo_devmem \
+	demo_devmem.c
+
+/* 
+A typical gcc invocation is all it takes to build the application
+*/
