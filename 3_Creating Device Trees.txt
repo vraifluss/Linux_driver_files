@@ -1,0 +1,92 @@
+3.Creating Device Trees
+
+[]$ sopc2dts --help
+ sopc2dts - 14.1 [f3b984376d464370083edffbe85dd18a2bb42a80]
+ Usage: sopc2dts <arguments>
+ 
+ Required Arguments:
+  --input <sopcinfo file> 	The sopcinfo file (optional in gui mode) (Required)
+  -i <sopcinfo file> Short for --input
+ 
+ Optional Arguments:
+  --board <boardinfo file> 			board description file (can be used multiple times) (Optional)
+  --bridge-ranges <{none,bridge,child}> 	What to describe in bridges address translations (Optional)
+  --bridge-removal <{all,balanced,none}> 	Bridge removal strategy (Optional)
+  --help 					Show this usage info and exit (Optional)
+  --verbose 					Show Lots of debugging info (Optional)
+  --gui 					Run in gui mode (Optional)
+  --clocks 					Show clocks in Device Tree Source / graph (Optional)
+  --conduits 					Show conduit interfaces in graph (Optional)
+  --version 					Show version information and exit (Optional)
+  --mimic-sopc-create-header-files 		Try to (mis)behave like sopc-create-header-files --no-timestamp Don't add a timestamp to generated files (Optional)
+  --output <filename> 				The output filename (Optional)
+  --pov <component name> 			The point of view to generate from. 
+						Defaults to the first cpu --pov-type <{cpu,pci}> 
+						The point of view device type (Optional)
+  --reset 					Show reset interfaces in graph (Optional)
+  --sort <{none,address,name,label}> 		Sort components by (Optional)
+  --streaming 					Show streaming interfaces in graph (Optional)
+  --type <{dtb,dtb-hex8,dtb-hex32,dtb-char-arr,dts,uboot,kernel}> 
+						The type of output to --bootargs <kernel-args> 
+						Default kernel arguments for the "chosen" section of the DTS 
+						--sopc-parameters <{node,cmacro,all} > 
+						What sopc-parameters to include in DTS (Optional)
+
+[]$ sopc2dts --input soc_system.sopcinfo --output soc_system.dts \
+	--board hps_common_board_info.xml --bridge-removal all --clocks \
+	--board board_info_ALTERA_CV_SOC.xml
+[]$ cat soc_system.dts
+	...cut...
+
+fifo_0: fifo@0x100040020 {
+		compatible = "ALTR,fifo-14.1", "ALTR,fifo-1.0";
+		reg = 	<0x00000001 0x00040020 0x00000004>,
+			<0x00000001 0x00040030 0x00000004>,
+			<0x00000001 0x00040000 0x00000020>;
+		reg-names = "in", "out", "in_csr";
+			clocks = <&clk_0>;
+}; //end fifo@0x100040020 (fifo_0)
+
+...cut...
+
+demo_driver_subsys_0: driver@0x100030000 {
+		compatible 	= "demo,driver-1.0", "demo,driver-1.0";
+		reg 		= <0x00000001 0x00030000 0x00001000>;
+		interrupt-parent= <&hps_0_arm_gic_0>;
+		interrupts 	= <0 48 4>;
+		clocks 		= <&clk_0>;
+}; //end driver@0x100030000 (demo_driver_subsys_0)
+
+...cut...
+
+/*
+  The sopc2dts utility can create device tree entries for the FPGA based 
+  Qsys components represented in the SOPCINFO file. 
+  These device tree entries can be compiled by the “dtc” compiler into a binary device tree 
+  blob that is used by the linux kernel to define the peripheral space available on the target. 
+  NOTE: newer u-boot versions are driven by device tree definitions as well as the kernel, 
+  however u-boot and the kernel require their own unique device tree definitions, 
+  generated separately.
+*/
+
+Device Tree Documentation
+Device Tree for Dummies:
+	http://events.linuxfoundation.org/sites/events/files/slides/petazzoni-device-tree-dummies.pdf
+/* Some publicly available information on device tree */
+
+[socfpga-3.10-ltsi]$ ls -R Documentation/devicetree/
+Documentation/devicetree/:
+ 00-INDEX bindings 
+ booting-without-of.txt 
+ usage-model.txt
+
+Documentation/devicetree/bindings:
+	arc i2c net sound arm iio nvec spi
+	ata input open-pic.txt staging
+	bus interrupt-controller pci thermal
+	c6x iommu phy timer clock leds pinctrl tty
+	cpufreq lpddr2 power usb crypto mailbox powerpc vendor-prefixes.txt
+	dma marvell.txt power_supply video drm media pwm virtio
+	eeprom.txt memory-controllers regulator w1 fb metag reset watchdog
+	fpga mfd resource-names.txt x86 gpio mips rng xilinx.txt
+	gpu misc rtc hwmon mmc serial hwrng mtd serio
