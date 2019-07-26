@@ -42,7 +42,7 @@ Addresses and available devices are a function of the master group.
     fpga_only_master.h 
     memcpy_msgdma_mm_read.h
     fft_sub_DDR.h 
-    hps_0_arm_a9_0.h 
+    hps_0_arm_a9_0.h /** ** **/
     memcpy_msgdma_mm_write.h
     fft_sub.h 
     hps_0_arm_a9_1.h 
@@ -59,4 +59,71 @@ Addresses and available devices are a function of the master group.
  of the memory mapped system. The macros in these headers can be useful 
  when writing applications and drivers that interact with the FPGA based 
  peripherals
+*/
+
+[]$ grep "\s[^H].*_BASE" qsys_headers/hps_0_arm_a9_0.h 
+ #define ONCHIP_MEMORY2_0_BASE 				0xc0000000 
+ #define SYSID_QSYS_BASE 				0xff201000 
+ #define INTR_CAPTURER_0_BASE 				0xff206000 
+ #define VALIDATOR_SUBSYS_0_BASE 			0xff210000 
+ #define MEMCPY_MSGDMA_CSR_BASE 			0xff220000 
+ #define MEMCPY_MSGDMA_DESCRIPTOR_SLAVE_BASE 		0xff220020 
+ #define DEMO_DRIVER_SUBSYS_0_BASE 			0xff230000 
+ #define FIFO_0_IN_CSR_BASE 				0xff240000 
+ #define FIFO_0_IN_BASE 				0xff240020 
+ #define FIFO_0_OUT_BASE 				0xff240030 
+ #define FIFO_1_IN_CSR_BASE 				0xff244000 
+ #define FIFO_1_IN_BASE 				0xff244020 
+ #define FIFO_1_OUT_BASE 				0xff244030 
+ #define FIFO_2_IN_CSR_BASE 				0xff248000 
+ #define FIFO_2_IN_BASE 				0xff248020 
+ #define FIFO_2_OUT_BASE 				0xff248030 
+ #define FFT_SUB_SGDMA_TO_FFT_CSR_BASE 			0xff280000 
+ #define FFT_SUB_SGDMA_TO_FFT_DESCRIPTOR_SLAVE_BASE 	0xff290000 
+ #define FFT_SUB_SGDMA_FROM_FFT_CSR_BASE 		0xff2a0000 
+ #define FFT_SUB_SGDMA_FROM_FFT_DESCRIPTOR_SLAVE_BASE 	0xff2b0000 
+ #define FFT_SUB_DATA_BASE 				0xff2c0000 
+ #define FFT_SUB_FFT_STADAPTER_0_BASE 			0xff2d0000
+
+/*
+ This is an example of the base addresses of the FPGA based Qsys peripherals 
+ from the perspective of the Cortex A9 processor. 
+ NOTE: this is a very small portion of the total contents of the header file macros.
+*/
+
+[]$ grep "\s[^H].*_BASE" qsys_headers/hps_0.h
+ #define ONCHIP_MEMORY2_0_BASE 				0x0
+ #define SYSID_QSYS_BASE 				0x1000
+ #define INTR_CAPTURER_0_BASE 				0x6000
+ #define VALIDATOR_SUBSYS_0_BASE 			0x10000
+ #define MEMCPY_MSGDMA_CSR_BASE 			0x20000
+ #define MEMCPY_MSGDMA_DESCRIPTOR_SLAVE_BASE 		0x20020
+ #define DEMO_DRIVER_SUBSYS_0_BASE 			0x30000
+ #define FIFO_0_IN_CSR_BASE 				0x40000
+ #define FIFO_0_IN_BASE 				0x40020
+ #define FIFO_0_OUT_BASE 				0x40030
+ #define FIFO_1_IN_CSR_BASE 				0x44000
+ #define FIFO_1_IN_BASE 				0x44020
+ #define FIFO_1_OUT_BASE 				0x44030
+ #define FIFO_2_IN_CSR_BASE 				0x48000
+ #define FIFO_2_IN_BASE 				0x48020
+ #define FIFO_2_OUT_BASE 				0x48030
+ #define FFT_SUB_SGDMA_TO_FFT_CSR_BASE 			0x80000
+ #define FFT_SUB_SGDMA_TO_FFT_DESCRIPTOR_SLAVE_BASE 	0x90000
+ #define FFT_SUB_SGDMA_FROM_FFT_CSR_BASE 		0xa0000
+ #define FFT_SUB_SGDMA_FROM_FFT_DESCRIPTOR_SLAVE_BASE 	0xb0000
+ #define FFT_SUB_DATA_BASE 				0xc0000
+ #define FFT_SUB_FFT_STADAPTER_0_BASE 			0xd0000
+
+ []$ grep "_IRQ [^0]" qsys_headers/hps_0.h
+ #define MEMCPY_MSGDMA_CSR_IRQ 7
+ #define DEMO_DRIVER_SUBSYS_0_IRQ 8
+ #define FFT_SUB_SGDMA_TO_FFT_CSR_IRQ 4
+ #define FFT_SUB_SGDMA_FROM_FFT_CSR_IRQ 3
+
+/*
+ This is an example of the base addresses of the FPGA based Qsys peripherals 
+ from the perspective of the HPS AXI bridges.
+ Below is an example of the IRQ values from the same perspective.
+ NOTE: this is a very small portion of the total contents of the header file macros.
 */
