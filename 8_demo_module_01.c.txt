@@ -1,0 +1,123 @@
+in kernel space
+
+8_demo_module_01.c – the most basic module
+
+#include <linux/module.h>
+static int demo_init(void)
+{
+ pr_info("demo_init enter\n");
+ pr_info("demo_init exit\n");
+ return 0;
+}
+static void demo_exit(void)
+{
+ pr_info("demo_exit enter\n");
+ pr_info("demo_exit exit\n");
+}
+
+module_init(demo_init);
+module_exit(demo_exit);
+/*
+ These macros export the symbols for the init and exit functions 
+ such that the kernel code that loads your module can identify these entry points.
+*/
+
+MODULE_LICENSE("GPL");
+/*
+ There are a collection of macros used to identify various attributes about a module. 
+ These strings get packaged into the module and can be accessed by various tools.
+ The most important module description macro is the MODULE_LICENSE macro. 
+ If this macro is not set to some sort of GPL license tag, 
+ then the kernel will become “tainted” when you load your module.
+*/
+
+MODULE_AUTHOR("Driver Student One <dso@company.com>");
+MODULE_AUTHOR("Driver Student Two <dst@organization.org>");
+MODULE_DESCRIPTION("Demonstration Module 1 - the most basic module example");
+MODULE_VERSION("1.0");
+
+/*
+ Every module has an init and an exit function. 
+ There are some macros that you could invoke if you just want some rather standard 
+ boilerplate init and exit functionality, 
+ but every module will have an init and exit entry point.
+*/
+
+[]$ diff -u demo_module_01.c demo_module_01t.c
+--- demo_module_01.c
++++ demo_module_01t.c
+@@ -34,8 +34,10 @@
+
+module_init(demo_init);
+module_exit(demo_exit);
++/*
+
+MODULE_LICENSE("GPL");
++*/
+MODULE_AUTHOR("Driver Student One <dso@company.com>");
+MODULE_AUTHOR("Driver Student Two <dst@organization.org>");
+-MODULE_DESCRIPTION("Demonstration Module 1 - the most basic module example");
++MODULE_DESCRIPTION("Demonstration Module 1t - tainted module example");
+MODULE_VERSION("1.0");
+
+/* 
+ demo_module_01t.c demonstrates a tainted module, simply by commenting out the MODULE_LICENCE macro.
+*/
+
+//modinfo
+
+[]$ modinfo demo_module_01.ko
+filename: 	...cut.../demo_module_01.ko
+version:	1.0
+description: 	Demonstration Module 1 - the most basic module example
+author: 	Driver Student Two <dst@organization.org>
+author: 	Driver Student One <dso@company.com>
+license: 	GPL
+srcversion: 	53D0236960C81C1164C0F6D
+depends:
+vermagic: 	3.10.31-ltsi SMP mod_unload ARMv7 p2v8
+
+[]$ modinfo demo_module_01t.ko
+filename: 	...cut.../demo_module_01t.ko
+version: 	1.0
+description: 	Demonstration Module 1t - tainted module example
+author: 	Driver Student Two <dst@organization.org>
+author: 	Driver Student One <dso@company.com>
+srcversion: 	53C8A51D7CA7ED5FB6C7217
+depends:
+vermagic: 	3.10.31-ltsi SMP mod_unload ARMv7 p2v8
+
+/*
+ Once our module is built, we can use modinfo to see what the 
+ MODULE_* macros defined about our module. Notice the lack of a license property
+ for the demo_module_01t.ko module.
+*/
+
+//demo_module_01.ko target demonstration
+
+cat /proc/sys/kernel/tainted 	# should be 0 = untainted 
+lsmod 				# should be "Not tainted" 
+cat /proc/modules 		# this is what lsmod formats for you 
+modprobe demo_module_01 	# insert our module 
+cat /proc/sys/kernel/tainted 	# should be 4096 = GPL, out of tree 
+lsmod 				# should be "Tainted: G" 
+modprobe demo_module_01t 	# insert our tainted module 
+cat /proc/sys/kernel/tainted 	# should be 4097 = proprietary, oot 
+lsmod 				# should be "Tainted: P" 
+cat /proc/modules 		# our modules appear (PO) and (O) 
+find /sys -name "*demo*“ 	# find our modules in sysfs 
+ls /sys/module/demo_module_01 	# see what the directory contains 
+cat /sys/module/demo_module_01/taint 	# should be "O" = GPL, out of tree 
+cat /sys/module/demo_module_01t/taint 	# should be "PO" = propprietary, oot 
+rmmod demo_module_01t 
+rmmod demo_module_01 		# remove our modules 
+lsmod 				# still tainted 
+cat /proc/sys/kernel/tainted 	# still tainted 
+ls /sys/module/ 		# these are all the modules, in tree 
+tail /var/log/messages 		# the printk messages from console
+
+/*
+ If you’re target has not been freshly booted, you’re kernel may already be tainted. 
+ If so, consider rebooting the target to start with a fresh untainted environment.
+*/
+

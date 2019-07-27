@@ -1,0 +1,114 @@
+9_demo_module_02.c – module parameters
+
+/*
+ We can define parameters for our module which allows us 
+ to pass in command line arguments to override these default values 
+ at runtime when we insmod or modprobe the module.
+*/
+
+/* define module parameters */
+static unsigned char param_byte = 0xFF;
+static short param_short = 0xFFFF;
+static unsigned short param_ushort = 0xFFFF;
+static int param_int = 0xFFFFFFFF;
+static unsigned int param_uint = 0xFFFFFFFF;
+static long param_long = 0xFFFFFFFF;
+static unsigned long param_ulong = 0xFFFFFFFF;
+static bool param_bool = 1;
+static char *param_charp;
+/*
+ We start by defining initialized global variables, 
+ these are the default values unless overridden when loaded
+*/
+
+module_param(param_byte, byte, S_IRUGO);
+module_param(param_short, short, S_IRUGO);
+module_param(param_ushort, ushort, S_IRUGO);
+module_param(param_int, int, S_IRUGO);
+module_param(param_uint, uint, S_IRUGO);
+module_param(param_long, long, S_IRUGO);
+/*
+ Then this module_param() macro informs the kernel 
+ that these variables are parameters to the module
+*/
+
+module_param(param_ulong, ulong, S_IRUGO);
+module_param(param_bool, bool, S_IRUGO);
+module_param(param_charp, charp, S_IRUGO);
+static int param_int_array[] = { 1, 2, 3, 4 };
+/* 
+ This is an array parameter example here.
+*/
+
+static unsigned int param_int_array_count;
+module_param_array(param_int_array, int, &param_int_array_count, S_IRUGO);
+MODULE_PARM_DESC(param_byte, "a byte parameter");
+MODULE_PARM_DESC(param_short, "a short parameter");
+MODULE_PARM_DESC(param_ushort, "a ushort parameter");
+MODULE_PARM_DESC(param_int, "a int parameter");
+MODULE_PARM_DESC(param_uint, "a uint parameter");
+MODULE_PARM_DESC(param_long, "a long parameter");
+MODULE_PARM_DESC(param_ulong, "a ulong parameter");
+MODULE_PARM_DESC(param_bool, "a bool parameter");
+MODULE_PARM_DESC(param_charp, "a charp parameter");
+MODULE_PARM_DESC(param_int_array, "an array of int parameters");
+
+/*
+ Remember those MODULE_* macros that we saw before. 
+ MODULE_PARAM_DESC will put these strings in the module, which makes them visible to modinfo dumps.
+*/
+
+static int demo_init(void)
+{
+	pr_info("demo_init enter\n");
+	pr_info("\n");
+	pr_info("param_byte = 0x%02X : %u\n", param_byte, param_byte);
+pr_info("param_short = 0x%04X : %d\n", param_short, param_short);
+pr_info("param_ushort = 0x%04X : %u\n", param_ushort, param_ushort);
+pr_info("param_int = 0x%08X : %d\n", param_int, param_int);
+pr_info("param_uint = 0x%08X : %u\n", param_uint, param_uint);
+pr_info("param_long = 0x%08lX : %ld\n", param_long, param_long);
+pr_info("param_ulong = 0x%08lX : %lu\n", param_ulong, param_ulong);
+pr_info("param_bool = %d\n", param_bool);
+pr_info("param_charp = \'%s\'\n", param_charp);
+pr_info("\n");
+pr_info("param_int_array_count = %d\n", param_int_array_count);
+pr_info("param_int_array[0] = %d\n", param_int_array[0]);
+pr_info("param_int_array[1] = %d\n", param_int_array[1]);
+pr_info("param_int_array[2] = %d\n", param_int_array[2]);
+pr_info("param_int_array[3] = %d\n", param_int_array[3]);
+pr_info("\n");
+pr_info("demo_init exit\n");
+return 0;
+}
+This example simply dumps all the parameter values from it’s init routine.
+
+modprobe demo_module_02 # insert the module without parameters
+rmmod demo_module_02 # remove the module
+modprobe demo_module_02 \
+
+param_byte=0x12 \
+param_short=0x3456 \
+param_ushort=0x789A \
+param_int=0x3CDEF012 \
+param_uint=0x3456789A \
+param_long=0x3CDEF012 \
+param_ulong=0x3456789A \
+param_bool=n \
+param_charp=hello-tim \
+param_int_array=5000,-6000,7000 # insert the module with parameters
+
+ls /sys/module/demo_module_02/ # notice the parameters directory
+ls /sys/module/demo_module_02/parameters/ # notice the parameter files
+
+cat /sys/module/demo_module_02/parameters/param_bool
+cat /sys/module/demo_module_02/parameters/param_byte | hexdump -C
+cat /sys/module/demo_module_02/parameters/param_charp
+cat /sys/module/demo_module_02/parameters/param_int
+cat /sys/module/demo_module_02/parameters/param_int_array
+cat /sys/module/demo_module_02/parameters/param_long
+
+printf "0x%08X\n" $(cat /sys/module/demo_module_02/parameters/param_long)
+rmmod demo_module_02 # remove the module
+/* Observe the output on the printk console. */
+
