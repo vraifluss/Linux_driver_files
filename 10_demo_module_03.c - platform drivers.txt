@@ -1,0 +1,100 @@
+Platform drivers
+demo_module_03.c - platform drivers
+
+#include <linux/module.h>
+#include <linux/platform_device.h>
+static struct of_device_id demo_driver_dt_ids[] = {
+	{
+	.compatible = "demo,driver-1.0“
+	},
+{ /* end of table */ }
+};
+
+MODULE_DEVICE_TABLE(of, demo_driver_dt_ids);
+
+static struct platform_driver the_platform_driver = {
+.probe = platform_probe,
+.remove = platform_remove,
+.driver = {
+.name = "demo_driver_3",
+.owner = THIS_MODULE,
+.of_match_table = demo_driver_dt_ids,
+},
+
+/*
+.shutdown 	= unused,
+.suspend 	= unused,
+.resume 	= unused,
+.id_table 	= unused,
+*/
+};
+
+/*
+We create an array of of_device_id’s where we specify “.compatible” strings 
+that the kernel will use to bind our driver to any devices represented 
+in the device tree when our module is inserted. This will automatically trigger 
+our driver probe if the device tree contains a compatible device entry.
+We also define an instance for our platform_driver.
+*/
+
+static int platform_probe(struct platform_device *pdev)
+{
+	pr_info("platform_probe enter\n");
+	pr_info("platform_probe exit\n");
+	return 0;
+}
+static int platform_remove(struct platform_device *pdev)
+{
+	pr_info("platform_remove enter\n");
+	pr_info("platform_remove exit\n");
+	return 0;
+}
+
+/* We define our probe and remove functions */
+
+static int demo_init(void)
+{
+	int ret_val;
+	pr_info("demo_init enter\n");
+
+	ret_val = platform_driver_register(&the_platform_driver);
+	if (ret_val != 0) {
+		pr_err("platform_driver_register returned %d\n", ret_val);
+		return ret_val;
+	}
+	pr_info("demo_init exit\n");
+	return 0;
+}
+
+static void demo_exit(void)
+{
+	pr_info("demo_exit enter\n");
+	platform_driver_unregister(&the_platform_driver);
+	pr_info("demo_exit exit\n");
+}
+
+/* We register our platform driver in our module init function and 
+we unregister our platform driver in our module exit function. */
+
+demo_module_03.ko target demonstration
+
+modprobe demo_module_03 			# insert the module
+find /sys -name "*demo*“ 			# find sysfs entries
+ls -l /sys/module/demo_module_03/drivers/ 	# this is a link to the driver entry
+ls /sys/module/demo_module_03 			# this looks like the module we saw before
+ls /sys/bus/platform/drivers/demo_driver_3 	# this is a platform driver entry
+
+# this links to the device entry
+ls -l /sys/bus/platform/drivers/demo_driver_3/ff230000.driver
+
+# we can unbind the device
+echo "ff230000.driver" > /sys/bus/platform/drivers/demo_driver_3/unbind
+ls /sys/bus/platform/drivers/demo_driver_3 	# and we see the result
+
+# we can bind the device
+echo "ff230000.driver" > /sys/bus/platform/drivers/demo_driver_3/bind
+ls /sys/bus/platform/drivers/demo_driver_3 	# and we see the result
+rmmod demo_module_03 				# remove the device
+
+/* Observe the output on the printk console. */
+

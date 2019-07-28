@@ -1,0 +1,195 @@
+Reserving memory regions and registering IRQ handlers
+demo_module_05.c – reserve memory, register irq
+
+static int platform_probe(struct platform_device *pdev)
+{
+...cut...
+	pr_info("platform_probe enter\n");
+	ret_val = -EBUSY;
+	/* acquire the probe lock */
+	if (down_interruptible(&g_dev_probe_sem))
+		return -ERESTARTSYS;
+	if (g_platform_probe_flag != 0)
+		goto bad_exit_return;
+	ret_val = -EINVAL;
+
+	/* get our first memory resource */
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (r == NULL) {
+		pr_err("IORESOURCE_MEM, 0 does not exist\n");
+		goto bad_exit_return;
+	}
+	g_demo_driver_base_addr = r->start;
+	g_demo_driver_size = resource_size(r);
+
+/* We start by retrieving our memory resource.
+   Note that we acquire a semaphore for the driver resources with the 
+   down_interruptible() call. */
+
+	/* get our interrupt resource */
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0) {
+		pr_err("irq not available\n");
+		goto bad_exit_return;
+	}
+	
+	g_demo_driver_irq = irq;
+
+	/* get our clock resource */
+	clk = clk_get(&pdev->dev, NULL);
+	if (IS_ERR(clk)) {
+		pr_err("clk not available\n");
+		goto bad_exit_return;
+	} else {
+		clk_rate = clk_get_rate(clk);
+	}
+
+/* Then we retrieve our IRQ number and our clock information. */
+
+	ret_val = -EBUSY;
+
+/* reserve our memory region */
+	demo_driver_mem_region = request_mem_region(g_demo_driver_base_addr,
+						g_demo_driver_size,"demo_driver_hw_region");
+	if (demo_driver_mem_region == NULL) {
+		pr_err("request_mem_region failed: g_demo_driver_base_addr\n");
+		goto bad_exit_return;
+	}
+
+	/* ioremap our memory region */
+	g_ioremap_addr = ioremap(g_demo_driver_base_addr, g_demo_driver_size);
+	if (g_ioremap_addr == NULL) {
+		pr_err("ioremap failed: g_demo_driver_base_addr\n");
+		goto bad_exit_release_mem_region;
+	}
+	
+	g_timer_base = g_ioremap_addr + TIMER_OFST;
+
+/* Now we can reserve our memory region and remap it into an IO pointer that our driver can use. */
+
+/* initialize our peripheral timer hardware */
+	io_result = ioread32(IOADDR_ALTERA_AVALON_TIMER_STATUS(g_timer_base));
+	io_result &= ALTERA_AVALON_TIMER_STATUS_TO_MSK | ALTERA_AVALON_TIMER_STATUS_RUN_MSK;
+
+	if (io_result != 0) {
+		pr_err("peripheral timer hardware, incorrect initial state");
+		goto bad_exit_iounmap;
+	}
+
+	period_100ms = (clk_rate / 10) - 1;
+	iowrite32(period_100ms,IOADDR_ALTERA_AVALON_TIMER_PERIODL(g_timer_base));
+			iowrite32(period_100ms >> 16, IOADDR_ALTERA_AVALON_TIMER_PERIODH(g_timer_base));
+
+/* Now that we have an IO pointer we can initialize our timer hardware. */
+
+/* register our interrupt handler */
+	ret_val = request_irq(	g_demo_driver_irq,
+				demo_driver_interrupt_handler,
+				0,
+				the_platform_driver.driver.name,
+				&the_platform_driver);
+/* Now we can register our IRQ handler and start our timer hardware to generate interrupts */
+
+	if (ret_val) {
+		pr_err("request_irq failed");
+		goto bad_exit_iounmap;
+	}
+	
+	ret_val = -EBUSY;
+/* start our timer and enable our timer hardware interrupts */
+	iowrite32(ALTERA_AVALON_TIMER_CONTROL_ITO_MSK | ALTERA_AVALON_TIMER_CONTROL_CONT_MSK |
+		  ALTERA_AVALON_TIMER_CONTROL_START_MSK, IOADDR_ALTERA_AVALON_TIMER_CONTROL(g_timer_base));
+	io_result = ioread32(IOADDR_ALTERA_AVALON_TIMER_STATUS(g_timer_base));
+	io_result &= ALTERA_AVALON_TIMER_STATUS_RUN_MSK;
+	if (io_result == 0) {
+/* stop our timer and disable our timer hardware interrupts */
+	iowrite32(ALTERA_AVALON_TIMER_CONTROL_STOP_MSK,IOADDR_ALTERA_AVALON_TIMER_CONTROL(g_timer_base));
+	pr_err("peripheral timer hardware, failed to start");
+	goto bad_exit_freeirq;
+	}
+
+	g_platform_probe_flag = 1;
+	up(&g_dev_probe_sem);
+	pr_info("platform_probe exit\n");
+	return 0;
+
+bad_exit_freeirq:
+	free_irq(g_demo_driver_irq, &the_platform_driver);
+
+bad_exit_iounmap:
+	iounmap(g_ioremap_addr);
+
+bad_exit_release_mem_region:
+	release_mem_region(g_demo_driver_base_addr, g_demo_driver_size);
+
+bad_exit_return:
+	up(&g_dev_probe_sem);
+	pr_info("platform_probe bad_exit\n");
+	return ret_val;
+}
+
+/* And we can clean things up and return from our probe function.
+   Note the bad exit return labels at the bottom of the function.
+   This construct allows us to unwind any allocations we’ve made in the opposite order 
+   that we created them in. You can also see that we release the semaphore with up().
+*/
+
+	irqreturn_t demo_driver_interrupt_handler(int irq, void *dev_id)
+	{
+	/* clear the interrupt */
+	iowrite32(0, IOADDR_ALTERA_AVALON_TIMER_STATUS(g_timer_base));
+	return IRQ_HANDLED;
+	}
+/* This is what our IRQ handler looks like. */
+
+static int platform_remove(struct platform_device *pdev)
+{
+	uint32_t io_result;
+		pr_info("platform_remove enter\n");
+
+/* stop our timer and disable our timer hardware interrupts */
+	iowrite32(ALTERA_AVALON_TIMER_CONTROL_STOP_MSK,IOADDR_ALTERA_AVALON_TIMER_CONTROL(g_timer_base));
+
+/* ensure there is no pending IRQ */
+	do {
+		io_result = ioread32(IOADDR_ALTERA_AVALON_TIMER_STATUS(g_timer_base));
+		io_result &= ALTERA_AVALON_TIMER_STATUS_TO_MSK;
+	} while (io_result != 0);
+
+	free_irq(g_demo_driver_irq, &the_platform_driver);
+	iounmap(g_ioremap_addr);
+	release_mem_region(g_demo_driver_base_addr, g_demo_driver_size);
+	if (down_interruptible(&g_dev_probe_sem))
+	return -ERESTARTSYS;
+	g_platform_probe_flag = 0;
+	up(&g_dev_probe_sem);
+	pr_info("platform_remove exit\n");
+	return 0;
+	}
+/* Our release function simply releases all the resources that we allocated 
+   in probe, and it shuts down our timer hardware. */
+
+demo_module_05.ko target demonstration
+./demo_devmem -s
+modprobe demo_module_05 			# insert module
+cat /proc/interrupts | grep "demo“ 		# observe IRQ occurring
+cat /proc/interrupts | grep "demo“ 		# observe IRQ occurring
+cat /proc/interrupts | grep "demo“ 		# observe IRQ occurring
+cat /proc/iomem | grep "demo“ 			# observe reserved memory
+
+# demo_module_05t.ko is a test module that we force to reserve the same
+# resources that demo_module_05.ko has already reserved. We can see which of
+# those actions fail and which of those actions succeed.
+
+modprobe demo_module_05t base=0xff230000 irq=42
+# observe printk
+# request_mem_region failed
+# ioremap succeeded
+# request_irq failed
+rmmod demo_module_05 # remove module
+
+/* Observe the output on the printk console. */
+
+
+
+

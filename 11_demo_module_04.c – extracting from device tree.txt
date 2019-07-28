@@ -1,0 +1,115 @@
+11.demo_module_04.c – extracting from device tree
+
+static int platform_probe(struct platform_device *pdev)
+{
+	int 	ret_val;
+	struct 	resource *r;
+	int 	irq;
+	struct 	clk *clk;
+	unsigned long 	clk_rate;
+
+	pr_info("platform_probe enter\n");
+	ret_val = -EINVAL;
+	
+	/* get our first memory resource */
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (r != NULL) {
+		pr_info("r->start = 0x%08lx\n", (long unsigned int)r->start);
+		pr_info("r->end = 0x%08lx\n", (long unsigned int)r->end);
+		pr_info("r->name = %s\n", r->name);
+		if (r->start & ~PAGE_MASK) {
+
+	...cut...
+	}
+		if (((r->end - r->start) + 1) > PAGE_SIZE) {
+	...cut...
+	}
+	} else {
+		pr_err("IORESOURCE_MEM, 0 does not exist\n");
+		goto bad_exit_return;
+	}
+	g_demo_driver_base_addr = r->start;
+
+/* We retrieve the memory regions allocated by our device 
+   by calling platform_get_resource(). */
+
+/* get our interrupt resource */
+	irq = platform_get_irq(pdev, 0);	
+	if (irq < 0) {
+	...cut...
+
+	} else {
+		pr_info("irq = %d\n", irq);
+	}
+
+	g_demo_driver_irq = irq;
+	
+	/* get our clock resource */
+	clk = clk_get(&pdev->dev, NULL);
+	if (IS_ERR(clk)) {
+	...cut...
+	
+	} else {
+	
+	clk_rate = clk_get_rate(clk);
+	pr_info("clk = %lu HZ\n", clk_rate);
+	}
+	g_demo_driver_clk_rate = clk_rate;
+	pr_info("platform_probe exit\n");
+	return 0;
+bad_exit_return:
+	pr_info("platform_probe bad_exit\n");	
+	return ret_val;
+  }
+
+/* We retrieve the irq that our hardware is allocated by calling platform_get_irq().
+   We retrieve our clock information by calling clk_get() and then clk_get_rate(). */
+
+demo_module_04.ko target demonstration (1)
+modprobe demo_module_03 	# insert the first module, notice probe
+modprobe demo_module_04 	# insert the second module, no probe
+rmmod demo_module_03 		# remove the first module
+rmmod demo_module_04 		# remove the module
+modprobe demo_module_04 	# insert the module notice probe printk
+rmmod demo_module_04 		# remove the module
+
+ls /proc/device-tree/
+ls /proc/device-tree/soc/
+ls /proc/device-tree/soc/base-fpga-region/
+ls /proc/device-tree/soc/base-fpga-region/driver@0x100030000/
+
+hexdump -C /proc/device-tree/soc/base-fpga-region/driver@0x100030000/compatible
+hexdump -C /proc/device-tree/soc/base-fpga-region/driver@0x100030000/name
+
+# reg = [0:7] bridge address, [8:11] span
+hexdump -C /proc/device-tree/soc/base-fpga-region/driver@0x100030000/reg
+
+# ranges = [0:7] bridge address, [8:11] processor address, [12:15] span
+hexdump -C /proc/device-tree/soc/base-fpga-region/ranges
+
+# interrupts = [0:3] type, [4:7] number, [8:11] flags
+hexdump -C /proc/device-tree/soc/base-fpga-region/driver@0x100030000/interrupts
+printf "%d\n" <number> 		# convert the hex interrupt number to decimal
+expr <number> + 32 		# add 32 to the interrupt number for actual GIC IRQ
+
+/* Observe the output on the printk console. */
+# this is a phandle
+hexdump -C /proc/device-tree/soc/base-fpga-region/driver@0x100030000/clocks
+
+# list all the phandles, sorted
+find /proc/device-tree/ -name "linux,phandle" | sort
+
+# list all the phandle values, sorted
+# then you can locate the clk_0 phandle
+find /proc/device-tree/ -name "linux,phandle" | sort | xargs hexdump -C
+
+# verify the phandle
+ls /proc/device-tree/soc/clkmgr@ffd04000/clocks/clk_0
+hexdump -C /proc/device-tree/soc/clkmgr@ffd04000/clocks/clk_0/linux,phandle
+
+# verify the clock frequency
+hexdump -C /proc/device-tree/soc/clkmgr@ffd04000/clocks/clk_0/clock-frequency
+printf "%d\n" <frequency>
+
+/* Observe the output on the printk console. */
+

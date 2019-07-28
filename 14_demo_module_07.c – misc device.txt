@@ -1,0 +1,697 @@
+14_demo_module_07.c – misc device
+
+static int platform_probe(struct platform_device *pdev)
+{
+...cut...
+
+	/* register misc device dev_rom */
+	sema_init(&the_demo_rom_dev.sem, 1);
+	ret_val = misc_register(&demo_rom_dev_device);
+	if (ret_val != 0) {
+...cut...
+}
+
+/* register misc device dev_ram */
+	sema_init(&the_demo_ram_dev.sem, 1);
+	ret_val = misc_register(&demo_ram_dev_device);
+	if (ret_val != 0) {
+...cut...
+}
+/* register misc device dev_tmr */
+	sema_init(&the_demo_tmr_dev.sem, 1);
+	ret_val = misc_register(&demo_tmr_dev_device);
+	if (ret_val != 0) {
+...cut...
+}
+/* register misc device dev_map */
+	sema_init(&the_demo_map_dev.sem, 1);
+	ret_val = misc_register(&demo_map_dev_device);
+	if (ret_val != 0) {
+...cut...
+}
+
+/* We start our probe function in much the same way as before. 
+   We use misc_register() to register 4 different devices with the kernel. 
+*/
+
+...cut...
+bad_exit_deregister_demo_tmr:
+	misc_deregister(&demo_tmr_dev_device);
+bad_exit_deregister_demo_ram:
+	misc_deregister(&demo_ram_dev_device);
+bad_exit_deregister_demo_rom:
+	misc_deregister(&demo_rom_dev_device);
+...cut...
+
+}
+static int platform_remove(struct platform_device *pdev)
+{
+...cut...
+	misc_deregister(&demo_map_dev_device);
+	misc_deregister(&demo_tmr_dev_device);
+	misc_deregister(&demo_ram_dev_device);
+	misc_deregister(&demo_rom_dev_device);
+...cut...
+}
+
+/* Our probe function ends in much the same way as before. 
+   We may have to deregister our misc devices on error conditions.
+   Our remove function simply removes our misc devices with misc_deregister(). 
+*/
+
+
+static const struct file_operations demo_rom_dev_fops = {
+	.owner = THIS_MODULE,
+	.open = demo_rom_dev_open,
+	.release = demo_rom_dev_release,
+	.read = demo_rom_dev_read,
+	.llseek = demo_rom_dev_llseek,
+};
+static struct miscdevice demo_rom_dev_device = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "demo_rom",
+	.fops = &demo_rom_dev_fops,
+};
+
+/* 
+ Our demo_rom device registers an open, release, read and llseek function
+*/
+static int demo_rom_dev_open(struct inode *ip, struct file *fp)
+{
+	struct demo_rom_dev *dev = &the_demo_rom_dev;
+...cut...
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+	fp->private_data = dev;
+	dev->open_count++;
+	up(&dev->sem);
+	pr_info("demo_rom_dev_open exit\n");
+	return 0;
+}
+
+static int demo_rom_dev_release(struct inode *ip, struct file *fp)
+{
+	struct demo_rom_dev *dev = fp->private_data;
+...cut...
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+	dev->release_count++;
+	up(&dev->sem);
+	pr_info("demo_rom_dev_release exit\n");
+	return 0;
+}
+
+// In this example our open and release functions don’t really do much, 
+// other than count some statistics for demonstration.
+
+static ssize_t
+demo_rom_dev_read(struct file *fp, char __user *user_buffer,
+size_t count, loff_t *offset)
+{
+...cut...
+	if (down_interruptible(&dev->sem)) {
+	pr_info("demo_rom_dev_read sem interrupted exit\n");
+	return -ERESTARTSYS;
+}
+	dev->read_count++;
+	if (*offset > max_offset) 
+	{
+		up(&dev->sem);
+		pr_info("demo_rom_dev_read offset > max_offset exit\n");
+		return -EINVAL;
+	}
+	
+	if (*offset == max_offset) 
+	{
+		up(&dev->sem);
+		pr_info("demo_rom_dev_read offset == max_offset exit\n");
+		return 0;
+	}
+	
+	if (next_offset > max_offset)	
+	count -= next_offset - max_offset;
+	temp_count = count;
+	rom_ptr = g_ioremap_addr + ROM_OFST;
+	rom_ptr += *offset;
+
+// Our demo_rom read routine allows user space to read from our ROM memory in our hardware
+
+while (temp_count > 0) {
+	int this_loop_count = IO_BUF_SIZE;
+	if (temp_count < IO_BUF_SIZE) this_loop_count = temp_count;
+
+	memcpy_fromio(&dev->io_buf, rom_ptr, this_loop_count);
+	if (copy_to_user(user_buffer, &dev->io_buf, this_loop_count)) 
+		{
+		up(&dev->sem);
+		pr_info("demo_rom_dev_read copy_to_user exit\n");
+		return -EFAULT;
+		}
+
+	temp_count -= this_loop_count;
+	user_buffer += this_loop_count;
+	rom_ptr += this_loop_count;
+	}
+	dev->read_byte_count += count;
+	*offset += count;
+
+	up(&dev->sem);
+	pr_info("demo_rom_dev_read exit\n");
+	return count;
+}
+
+static loff_t demo_rom_dev_llseek(struct file *fp, loff_t offset, int mode)
+{
+	struct demo_rom_dev *dev = fp->private_data;
+	loff_t max_offset = ROM_SPAN;
+	loff_t next_offset;
+...cut...
+	if (down_interruptible(&dev->sem)) {	
+	pr_info("demo_rom_dev_llseek sem interrupted exit\n");
+	return -ERESTARTSYS;
+	}
+	dev->llseek_count++;
+	switch (mode) {
+		case SEEK_SET:
+			next_offset = offset;
+			break;
+		case SEEK_CUR:
+			next_offset = fp->f_pos + offset;
+			break;
+		case SEEK_END:
+			next_offset = max_offset;
+			break;
+		default:
+			up(&dev->sem);
+			pr_info("demo_rom_dev_llseek bad mode exit\n");
+			return -EINVAL;
+}
+
+/* Our demo_rom llseek routine allows user space to seek within our ROM space. */
+
+if (next_offset < 0) {
+	up(&dev->sem);	
+	pr_info("demo_rom_dev_llseek negative offset exit\n");
+	return -EINVAL;
+}
+
+if (next_offset > max_offset)
+	next_offset = max_offset;
+
+fp->f_pos = next_offset;
+
+up(&dev->sem);
+pr_info("demo_rom_dev_llseek exit\n");
+return next_offset;
+}
+
+static const struct file_operations demo_ram_dev_fops = {
+.owner = THIS_MODULE,
+.open = demo_ram_dev_open,
+.release = demo_ram_dev_release,
+.read = demo_ram_dev_read,
+.write = demo_ram_dev_write,
+.llseek = demo_ram_dev_llseek,
+};
+
+static struct miscdevice demo_ram_dev_device = {
+.minor = MISC_DYNAMIC_MINOR,
+.name = "demo_ram",
+.fops = &demo_ram_dev_fops,
+};
+
+// Our demo_ram device registers a write function in addition to the functions 
+// that our demo_rom device registered. This allows user space to write and read our 
+// RAM hardware.
+
+static ssize_t
+demo_ram_dev_write(struct file *fp,
+const char __user *user_buffer, size_t count,
+loff_t *offset)
+{
+	struct demo_ram_dev *dev = fp->private_data;
+	loff_t max_offset = RAM_SPAN;
+	loff_t next_offset = *offset + count;
+	size_t temp_count;
+	void *ram_ptr;
+...cut...
+
+	if (down_interruptible(&dev->sem)) {
+	pr_info("demo_ram_dev_write sem interrupted exit\n");
+	return -ERESTARTSYS;
+	}
+
+	dev->write_count++;
+	if (*offset > max_offset) {
+	up(&dev->sem);
+	pr_info("demo_ram_dev_write offset > max_offset exit\n");
+	return -EINVAL;
+	}
+
+	if (*offset == max_offset) {
+	up(&dev->sem);
+	pr_info("demo_ram_dev_write offset == max_offset exit\n");
+	return -ENOSPC;
+}
+// Our demo_ram write function is similar to the read function, 
+// just implementing the opposite data flow.
+
+if (next_offset > max_offset)
+	count -= next_offset - max_offset;
+temp_count = count;
+ram_ptr = g_ioremap_addr + RAM_OFST;
+ram_ptr += *offset;
+while (temp_count > 0) {
+	int this_loop_count = IO_BUF_SIZE;
+	if (temp_count < IO_BUF_SIZE)
+		this_loop_count = temp_count;
+
+	if (copy_from_user
+		(&dev->io_buf, user_buffer, this_loop_count)) {
+		up(&dev->sem);
+		pr_info("demo_ram_dev_write copy_from_user exit\n");
+		return -EFAULT;
+	}
+	memcpy_toio(ram_ptr, &dev->io_buf, this_loop_count);
+	temp_count -= this_loop_count;
+	user_buffer += this_loop_count;
+	ram_ptr += this_loop_count;
+}
+
+dev->write_byte_count += count;
+*offset += count;
+up(&dev->sem);
+pr_info("demo_ram_dev_write exit\n");
+return count;
+
+// In our write we copy_from_user() and memcpy_toio().
+
+static const struct file_operations demo_tmr_dev_fops = {
+.owner = THIS_MODULE,
+.open = demo_tmr_dev_open,
+.release = demo_tmr_dev_release,
+.unlocked_ioctl = demo_tmr_dev_ioctl,
+};
+
+static struct miscdevice demo_tmr_dev_device = {
+.minor = MISC_DYNAMIC_MINOR,
+.name = "demo_tmr",
+.fops = &demo_tmr_dev_fops,
+};
+
+// Our demo_tmr device registers an open, release and ioctl function. 
+// This allows user space to interact with our timer hardware
+
+static long
+demo_tmr_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
+{
+...cut...
+	if (down_interruptible(&dev->sem)) {
+		pr_info("demo_tmr_dev_ioctl sem interrupted exit\n");
+		return -ERESTARTSYS;
+	}
+
+	dev->ioctl_count++;
+	switch (cmd) {
+		case IOC_SET_INTERVAL:
+			...cut...
+		case IOC_GET_INTERVAL:
+			...cut...
+		case IOC_GET_MAX_DELAY:
+			...cut...
+		case IOC_GET_MIN_DELAY:
+			...cut...
+		default:
+			up(&dev->sem);
+			pr_info("demo_tmr_dev_ioctl bad cmd exit\n");
+			return -EINVAL;
+		}
+	up(&dev->sem);
+	pr_info("demo_tmr_dev_ioctl exit\n");
+	return 0;
+}
+
+// Our ioctl boils down to a switch statement.
+
+case IOC_SET_INTERVAL:
+	if (get_user(new_interval, (uint32_t *)arg) < 0) {
+	up(&dev->sem);	
+	pr_info("demo_tmr_dev_ioctl get_user exit\n");
+	return -EFAULT;
+	}
+
+/* range check the requested new interval value */
+if (new_interval > 100) {
+	up(&dev->sem);
+	pr_info("demo_tmr_dev_ioctl new_interval > 100 exit\n");
+	return -EINVAL;
+}
+
+/* calculate the new period value */
+if (new_interval > 0)
+	new_period = (g_demo_driver_clk_rate / new_interval) - 1;
+else	new_period = g_demo_driver_clk_rate;
+
+/* acquire the irq_lock */
+spin_lock_irqsave(&g_irq_lock, flags);
+
+/* stop the interval timer */
+iowrite32(ALTERA_AVALON_TIMER_CONTROL_STOP_MSK,
+IOADDR_ALTERA_AVALON_TIMER_CONTROL(g_timer_base));
+
+
+// Details of switch case SET_INTERVAL. Uses get_user() instead of copy_from_user().
+
+/* ensure there is no pending IRQ that we are blocking */
+the_status = ioread32(IOADDR_ALTERA_AVALON_TIMER_STATUS(g_timer_base));
+the_status &= ALTERA_AVALON_TIMER_STATUS_TO_MSK;
+if (the_status != 0) {
+do {
+
+/*
+if we are blocking, release the lock to allow
+IRQ handler to execute, acquire the lock and
+check again
+*/
+spin_unlock_irqrestore(&g_irq_lock, flags);
+spin_lock_irqsave(&g_irq_lock, flags);
+the_status = ioread32(IOADDR_ALTERA_AVALON_TIMER_STATUS(g_timer_base));
+the_status &= ALTERA_AVALON_TIMER_STATUS_TO_MSK;
+ } while (the_status != 0);
+}
+// manage potential race for spin lock with irq handler
+
+/* write the new period value */
+iowrite32(new_period, IOADDR_ALTERA_AVALON_TIMER_PERIODL(g_timer_base));
+iowrite32(new_period >> 16, IOADDR_ALTERA_AVALON_TIMER_PERIODH(g_timer_base));
+
+/* initialize the MAX/MIN variables */
+g_max_irq_delay = 0;
+g_min_irq_delay = 0xFFFFFFFF;
+
+/* start the timer */
+if (new_interval > 0)
+	iowrite32(ALTERA_AVALON_TIMER_CONTROL_ITO_MSK |
+		ALTERA_AVALON_TIMER_CONTROL_CONT_MSK | ALTERA_AVALON_TIMER_CONTROL_START_MSK,
+		IOADDR_ALTERA_AVALON_TIMER_CONTROL(g_timer_base));
+
+/* release the irq_lock */
+spin_unlock_irqrestore(&g_irq_lock, flags);
+break;
+
+case IOC_GET_MAX_DELAY:
+/* acquire the irq_lock */
+spin_lock_irqsave(&g_irq_lock, flags);
+
+/* capture the shared data values */
+max_irq_delay = g_max_irq_delay;
+
+/* release the irq_lock */
+spin_unlock_irqrestore(&g_irq_lock, flags);
+
+if (put_user(max_irq_delay, (uint32_t *)arg) < 0) {
+up(&dev->sem);
+pr_info("demo_tmr_dev_ioctl put_user exit\n");
+return -EFAULT;
+}
+break;
+
+// Details of switch case GET_MAX_DELAY. Uses put_user() instead of copy_to_user().
+
+static const struct file_operations demo_map_dev_fops = {
+.owner = THIS_MODULE,
+.open = demo_map_dev_open,
+.release = demo_map_dev_release,
+.read = demo_map_dev_read,
+.mmap = demo_map_dev_mmap,
+};
+static struct miscdevice demo_map_dev_device = {
+.minor = MISC_DYNAMIC_MINOR,
+.name = "demo_map",
+.fops = &demo_map_dev_fops,
+};
+
+// Our demo_map device registers functions for open, release, read and mmap. 
+// This allows user space to mmap() our device, similar to what we did 
+// in the /dev/mem example. The read function allows us to emulate IRQ polling 
+// in much the same way as a UIO device does, we’ll demonstrate a UIO device later.
+
+static ssize_t
+demo_map_dev_read(struct file *fp, char __user *user_buffer,size_t count, loff_t *offset)
+{
+	struct demo_map_dev *dev = fp->private_data;
+	uint32_t cur_irq_cnt;
+	...cut...
+
+	if (down_interruptible(&dev->sem)) {
+	pr_info("demo_map_dev_read sem interrupted exit\n");
+	return -ERESTARTSYS;
+}
+
+dev->read_count++;
+if (*offset != 0) {
+	up(&dev->sem);
+	pr_info("demo_map_dev_read offset != 0 exit\n");
+	return -EINVAL;
+}
+if (count != 4) {
+	up(&dev->sem);
+	pr_info("demo_map_dev_read count != 4 exit\n");
+	return -EINVAL;
+}
+
+// The demo_map read function starts by validating the input arguments 
+// for the exact count requirements that we expect to fulfill, anything else is 
+// considered an error
+
+cur_irq_cnt = get_current_irq_count();
+while (cur_irq_cnt == get_current_irq_count()) {
+up(&dev->sem);
+if (wait_event_interruptible(g_irq_wait_queue,
+(cur_irq_cnt != get_current_irq_count()))) {
+ 	pr_info("demo_map_dev_read wait interrupted exit\n");
+	return -ERESTARTSYS;
+}
+if (down_interruptible(&dev->sem)) {
+	pr_info("demo_map_dev_read sem interrupted exit\n");
+	return -ERESTARTSYS;
+}
+}
+cur_irq_cnt = get_current_irq_count();
+if (copy_to_user(user_buffer, &cur_irq_cnt, count)) {
+	up(&dev->sem);
+	pr_info("demo_map_dev_read copy_to_user exit\n");
+	return -EFAULT;
+}
+dev->read_byte_count += count;
+	up(&dev->sem);
+	pr_info("demo_map_dev_read exit\n");
+	return count;
+}
+
+// The heart of the demo_map read function is waiting for the next IRQ event to occur
+
+static inline uint32_t get_current_irq_count(void)
+{
+	uint32_t current_count;
+	unsigned long flags;
+	spin_lock_irqsave(&g_irq_lock, flags);
+	current_count = g_irq_count;
+	spin_unlock_irqrestore(&g_irq_lock, flags);	
+	return current_count;
+}
+
+irqreturn_t demo_driver_interrupt_handler(int irq, void *dev_id)
+{
+...cut...
+	spin_lock(&g_irq_lock);
+...cut...
+	spin_unlock(&g_irq_lock);
+	wake_up_interruptible(&g_irq_wait_queue);
+	return IRQ_HANDLED;
+}
+// The read function leveraged this helper function to query the IRQ count in a safe 
+// fashion to avoid race conditions.
+// The IRQ handler for this example is similar to before with the addition of the wake up 
+// event signal, which is what the read function will ultimately pend on.
+
+static int demo_map_dev_mmap(struct file *fp, struct vm_area_struct *vma)
+{
+	struct demo_map_dev *dev = fp->private_data;
+...cut...
+	if (down_interruptible(&dev->sem))
+	return -ERESTARTSYS;
+	dev->mmap_count++;
+	if (vma->vm_end - vma->vm_start != PAGE_SIZE) {
+	up(&dev->sem);
+	return -EINVAL;
+}
+
+vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+vma->vm_pgoff = g_demo_driver_base_addr >> PAGE_SHIFT;
+
+if (remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff, PAGE_SIZE,
+vma->vm_page_prot)) {
+	up(&dev->sem);
+	return -EAGAIN;
+}
+up(&dev->sem);
+	pr_info("demo_map_dev_mmap exit\n");
+	return 0;
+}
+
+// The demo_map mmap function maps our IO region into a user space safe pointer 
+// as noncached memory
+
+demo_map_test.c
+
+int main(int argc, char **argv) {
+...cut...
+//
+// parse the command line arguments
+//
+parse_cmdline(argc, argv);
+//
+// open() the /dev/demo_map device
+//
+
+dev_demo_map_fd = open("/dev/demo_map", O_RDWR | O_SYNC);
+if(dev_demo_map_fd < 0) {
+	perror("dev_demo_map open");
+	exit(EXIT_FAILURE);
+}
+//
+// mmap() the base of our demo_driver hardware
+//
+
+demo_driver_map = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ|PROT_WRITE,
+MAP_SHARED, dev_demo_map_fd, 0);
+
+if(demo_driver_map == MAP_FAILED) {
+	perror("dev_demo_map mmap");
+	close(dev_demo_map_fd);
+	exit(EXIT_FAILURE);
+}
+
+// We provide a test application to drive the mmap functionality of our demo_map driver. 
+// This looks basically the same as our /dev/mem example, but this 
+// example uses /dev/demo_map instead.
+
+ioctl_test.c
+int main(int argc, char **argv) {
+int dev_demo_tmr_fd;
+//
+// parse the command line arguments
+//
+ parse_cmdline(argc, argv);
+//
+// open() the /dev/demo_tmr device
+//
+ dev_demo_tmr_fd = open("/dev/demo_tmr", O_RDWR | O_SYNC);
+ if(dev_demo_tmr_fd < 0) {
+ perror("dev_demo_tmr open");
+ exit(EXIT_FAILURE);
+}
+//
+// perform the operation selected by the command line arguments
+//
+
+if(g_get_interval != NULL) do_get_interval(dev_demo_tmr_fd);
+if(g_set_interval != NULL) do_set_interval(dev_demo_tmr_fd);
+if(g_get_max_delay != NULL) do_get_max_delay(dev_demo_tmr_fd);
+if(g_get_min_delay != NULL) do_get_min_delay(dev_demo_tmr_fd);
+if(g_help != NULL) do_help();
+close(dev_demo_tmr_fd);
+exit(EXIT_SUCCESS);
+}
+
+// We provide a test application to drive the ioctl functionality of our demo_tmr driver
+
+void do_get_interval(int dev_demo_tmr_fd) {
+int result;
+unsigned long interval;
+result = ioctl(dev_demo_tmr_fd, IOC_GET_INTERVAL, &interval);
+if(result != 0) {
+ error(1, errno, "%s:%d ioctl failed", __FILE__, __LINE__);
+ }
+ printf("Current IRQ interval is %lu interrupts per second.\n", interval);
+}
+void do_set_interval(int dev_demo_tmr_fd) {
+int result;
+ result = ioctl(dev_demo_tmr_fd, IOC_SET_INTERVAL, &g_new_interval);
+ if(result != 0) {
+ error(1, errno, "%s:%d ioctl failed", __FILE__, __LINE__);
+ }
+printf("IRQ interval set to %lu interrupts per second.\n", g_new_interval);
+}
+// Here are the get and set interval functions
+
+void do_get_max_delay(int dev_demo_tmr_fd) {
+int result;
+unsigned long delay;
+result = ioctl(dev_demo_tmr_fd, IOC_GET_MAX_DELAY, &delay);
+ if(result != 0) {
+ error(1, errno, "%s:%d ioctl failed", __FILE__, __LINE__);
+ }
+ printf("Maximum IRQ service delay is %lu ticks.\n", delay);
+ }
+
+void do_get_min_delay(int dev_demo_tmr_fd) {
+int result;
+unsigned long delay;
+ result = ioctl(dev_demo_tmr_fd, IOC_GET_MIN_DELAY, &delay);
+ if(result != 0) {
+ error(1, errno, "%s:%d ioctl failed", __FILE__, __LINE__);
+ }
+ printf("Minimum IRQ service delay is %lu ticks.\n", delay);
+}
+
+// Here are the get max and min delay functions.
+
+demo_module_07.ko target demonstration (1)
+
+modprobe demo_module_07 			# insert module
+ls /dev | grep "demo“ 				# observe devfs entries
+dd if=/dev/demo_rom | hexdump –C 		# read from rom
+dd if=/dev/zero of=/dev/demo_rom 		# write to rom
+dd if=/dev/demo_ram | hexdump –C 		# read from ram
+dd if=/dev/zero of=/dev/demo_ram 		# write to ram
+dd if=/dev/demo_ram | hexdump –C 		# verify write
+dd if=/dev/demo_ram bs=64 count=1 | hexdump –Cv # dump first 64 ram bytes
+dd if=/dev/demo_rom bs=64 count=1 | hexdump –C 	# dump first 64 rom bytes
+
+# demonstrate llseek by copying 4 bytes from offset 56 in rom to offset 16 in ram
+dd if=/dev/demo_rom of=/dev/demo_ram bs=1 count=4 skip=56 seek=16
+dd if=/dev/demo_ram bs=64 count=1 | hexdump -Cv
+
+# verify the operation
+./demo_map_test –h 				# run demo_map_test
+./demo_map_test -o | hexdump –C 		# dump rom
+./demo_map_test -a | hexdump –C 		# dump ram
+dd if=/dev/urandom | ./demo_map_test –f 	# fill ram
+./demo_map_test -a | hexdump –C 		# verify ram
+./demo_map_test –t				# dump the timer registers
+
+// Observe the output on the printk console.
+
+for I in 1 2 3 4 ; do
+dd if=/dev/demo_map bs=4 count=1 | hexdump -C
+done
+# demonstrate demo_map read the result is the irq count returned at the next
+# IRQ event
+
+# demonstrate ioctl
+cat /sys/bus/platform/drivers/demo_driver_7/interval
+./ioctl_test -g
+
+echo "100" > /sys/bus/platform/drivers/demo_driver_7/interval
+./ioctl_test -g
+
+cat /sys/bus/platform/drivers/demo_driver_7/irq_delays
+./ioctl_test -x
+./ioctl_test -n
+rmmod demo_module_07
+
+// Observe the output on the printk console.
+
+

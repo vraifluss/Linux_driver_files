@@ -116,10 +116,10 @@ Addresses and available devices are a function of the master group.
  #define FFT_SUB_FFT_STADAPTER_0_BASE 			0xd0000
 
  []$ grep "_IRQ [^0]" qsys_headers/hps_0.h
- #define MEMCPY_MSGDMA_CSR_IRQ 7
- #define DEMO_DRIVER_SUBSYS_0_IRQ 8
- #define FFT_SUB_SGDMA_TO_FFT_CSR_IRQ 4
- #define FFT_SUB_SGDMA_FROM_FFT_CSR_IRQ 3
+ #define MEMCPY_MSGDMA_CSR_IRQ 			7
+ #define DEMO_DRIVER_SUBSYS_0_IRQ 		8
+ #define FFT_SUB_SGDMA_TO_FFT_CSR_IRQ 		4
+ #define FFT_SUB_SGDMA_FROM_FFT_CSR_IRQ 	3
 
 /*
  This is an example of the base addresses of the FPGA based Qsys peripherals 
